@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "safe-exec-protocol"
+version = "1.0.0"
+description = "Signed pre-execution consensus for isolated code execution"
+requires-python = ">=3.11"
+dependencies = [
+  "cryptography>=45,<50",
+  "fastapi>=0.116,<1",
+  "httpx>=0.28,<1",
+  "pydantic>=2.11,<3",
+  "PyYAML>=6,<7",
+  "uvicorn>=0.35,<1",
+]
+
+[project.optional-dependencies]
+e2b = ["e2b-code-interpreter>=2.4,<3"]
+test = ["pytest>=8.4,<10"]
+
+[project.scripts]
+safe-exec = "safeexec.cli:main"
+safe-exec-service = "safeexec.service:main"
+safe-exec-keygen = "safeexec.keygen:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["safeexec"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

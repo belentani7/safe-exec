@@ -1,0 +1,104 @@
+services:
+  local:
+    build: .
+    environment:
+      SAFEEXEC_ROLE: local
+      SAFEEXEC_PRIVATE_KEY: /run/secrets/local_private
+    secrets: [local_private]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    tmpfs: [/tmp]
+    networks: [control]
+
+  global:
+    build: .
+    environment:
+      SAFEEXEC_ROLE: global
+      SAFEEXEC_PRIVATE_KEY: /run/secrets/global_private
+      VT_API_KEY_FILE: /run/secrets/vt_api_key
+    secrets: [global_private, vt_api_key]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    tmpfs: [/tmp]
+    networks: [control, egress]
+
+  semantic:
+    build: .
+    environment:
+      SAFEEXEC_ROLE: semantic
+      SAFEEXEC_PRIVATE_KEY: /run/secrets/semantic_private
+      OLLAMA_ENDPOINT: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-phi4-mini:latest}
+    secrets: [semantic_private]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    tmpfs: [/tmp]
+    networks: [control]
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes: [ollama-data:/root/.ollama]
+    networks: [control]
+
+  broker:
+    build: .
+    environment:
+      SAFEEXEC_ROLE: broker
+      SAFEEXEC_PRIVATE_KEY: /run/secrets/broker_private
+      SAFEEXEC_TRUSTED_KEYS: /run/secrets
+      SAFEEXEC_REPLAY_DB: /data/replay.sqlite3
+    secrets: [broker_private, local_public, global_public, semantic_public]
+    volumes: [broker-data:/data]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    tmpfs: [/tmp]
+    networks: [control]
+
+  orchestrator:
+    build: .
+    entrypoint: ["safe-exec"]
+    environment:
+      SAFEEXEC_EVALUATORS: http://local:8080,http://global:8080,http://semantic:8080
+      SAFEEXEC_BROKER: http://broker:8080
+      SAFEEXEC_BROKER_PUBLIC_KEY: /run/secrets/broker_public
+      SAFEEXEC_TOKEN_DB: /data/tokens.sqlite3
+      E2B_API_KEY_FILE: /run/secrets/e2b_api_key
+    secrets: [broker_public, e2b_api_key]
+    volumes:
+      - ./samples:/work:ro
+      - orchestrator-data:/data
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    networks: [control, egress]
+    profiles: [run]
+
+networks:
+  control:
+    internal: true
+  egress: {}
+
+volumes:
+  broker-data:
+  ollama-data:
+  orchestrator-data:
+
+secrets:
+  local_private: {file: ./secrets/local_private.pem}
+  global_private: {file: ./secrets/global_private.pem}
+  semantic_private: {file: ./secrets/semantic_private.pem}
+  broker_private: {file: ./secrets/broker_private.pem}
+  local_public: {file: ./secrets/local_public.pem}
+  global_public: {file: ./secrets/global_public.pem}
+  semantic_public: {file: ./secrets/semantic_public.pem}
+  broker_public: {file: ./secrets/broker_public.pem}
+  vt_api_key: {file: ./secrets/vt_api_key.txt}
+  e2b_api_key: {file: ./secrets/e2b_api_key.txt}

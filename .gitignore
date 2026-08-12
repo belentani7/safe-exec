@@ -1,0 +1,14 @@
+.env
+.venv/
+.venv312/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.sqlite3
+secrets/*_private.pem
+secrets/vt_api_key.txt
+secrets/e2b_api_key.txt
+ollama-data/
+dist/
+build/
+*.egg-info/

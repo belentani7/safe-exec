@@ -1,0 +1,22 @@
+version: safeexec-1
+blocked_imports:
+  - ctypes
+  - multiprocessing
+blocked_calls:
+  - eval
+  - exec
+  - compile
+  - os.system
+  - os.execv
+  - os.execve
+  - subprocess.call
+  - subprocess.run
+  - subprocess.Popen
+  - shutil.rmtree
+  - os.remove
+  - os.unlink
+blocked_literals:
+  - /etc/shadow
+  - /.ssh/
+  - AWS_SECRET_ACCESS_KEY
+  - GITHUB_TOKEN
