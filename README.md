@@ -52,3 +52,9 @@ Antes del primer uso, descarga el modelo configurado dentro del servicio Ollama.
 ## Estado verificado
 
 El núcleo criptográfico y las reglas cuentan con pruebas de firma válida, firma falsificada, vínculo a otro archivo, replay y análisis AST. Docker/E2B/VirusTotal requieren servicios y credenciales externas y deben validarse en el entorno de despliegue.
+
+## Investigación de producto
+
+- [10 ideas, auditoría y propuesta unificada](docs/RESEARCH-TRUST-TRIAL.md)
+- [Estrategia GitHub, legal y crecimiento auténtico](docs/GITHUB-LEGAL-GROWTH.md)
+- [Decisión sobre una segunda repo](docs/AUDIT-DECISION.md)
