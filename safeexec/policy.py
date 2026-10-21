@@ -56,10 +56,46 @@ class StaticPolicyEvaluator(ast.NodeVisitor):
                 )
         self.generic_visit(node)
 
-    def visit_Call(self, node: ast.Call) -> None:
-        name = self._call_name(node.func)
+    def _canonical_call(self, name: str) -> str:
+        """Resolve imports and simple function assignments; not arbitrary data flow."""
         root, dot, rest = name.partition(".")
         canonical = self.aliases.get(root, root) + (dot + rest if dot else "")
+        if canonical.startswith("builtins."):
+            short = canonical.removeprefix("builtins.")
+            if short in self.blocked_calls:
+                return short
+        return canonical
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        # Simple named aliases are a common way to disguise dangerous calls.
+        # Never evaluate the assignment: inspect syntax only.
+        self.visit(node.value)
+        name = self._call_name(node.value)
+        canonical = self._canonical_call(name) if name else ""
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                if canonical:
+                    self.aliases[target.id] = canonical
+                else:
+                    self.aliases.pop(target.id, None)
+            else:
+                self.visit(target)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        if node.value is not None:
+            self.visit(node.value)
+        if isinstance(node.target, ast.Name):
+            name = self._call_name(node.value) if node.value is not None else ""
+            canonical = self._canonical_call(name) if name else ""
+            if canonical:
+                self.aliases[node.target.id] = canonical
+            else:
+                self.aliases.pop(node.target.id, None)
+        else:
+            self.visit(node.target)
+
+    def visit_Call(self, node: ast.Call) -> None:
+        canonical = self._canonical_call(self._call_name(node.func))
         if canonical in self.blocked_calls:
             self.findings.append(Finding("blocked-call", node.lineno, canonical))
         self.generic_visit(node)
