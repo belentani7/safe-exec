@@ -45,3 +45,23 @@ def test_blocked_import_still_works(evaluator):
 
 def test_invalid_python_still_rejected(evaluator):
     assert evaluator.evaluate("def broken(")[0].rule == "invalid-python"
+
+@pytest.mark.parametrize("code", [
+    "from builtins import eval as e\ne('2+2')",
+    "import builtins as b\nb.eval('2+2')",
+    "import os as o\nrun = o.system\nrun('echo')",
+    "from os import system as invoke\nexecute = invoke\nexecute('echo')",
+    "import os\ncall: object = os.system\ncall('echo')",
+])
+def test_builtin_and_assignment_aliases_are_inspected(evaluator, code):
+    assert any(f.rule == "blocked-call" for f in evaluator.evaluate(code))
+
+
+def test_alias_rebinding_to_safe_symbol_clears_stale_binding(evaluator):
+    code = "import os\nrun = os.system\nrun = print\nrun('hello')"
+    assert not any(f.rule == "blocked-call" for f in evaluator.evaluate(code))
+
+
+def test_scanner_reports_new_simple_alias_without_running_it(evaluator):
+    findings = evaluator.evaluate("import os\nfn = os.system\nfn('never execute')")
+    assert [f.detail for f in findings if f.rule == "blocked-call"] == ["os.system"]
