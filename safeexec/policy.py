@@ -21,9 +21,11 @@ class StaticPolicyEvaluator(ast.NodeVisitor):
         self.blocked_imports = set(rules.get("blocked_imports", []))
         self.blocked_literals = tuple(rules.get("blocked_literals", []))
         self.findings: list[Finding] = []
+        self.aliases: dict[str, str] = {}
 
     def evaluate(self, source: str) -> list[Finding]:
         self.findings.clear()
+        self.aliases.clear()
         try:
             tree = ast.parse(source)
         except SyntaxError as exc:
@@ -33,6 +35,11 @@ class StaticPolicyEvaluator(ast.NodeVisitor):
 
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
+            # Resolve imports such as `import os as operating_system`.
+            # Importing a dotted module binds its root unless renamed.
+            self.aliases[alias.asname or alias.name.split(".")[0]] = (
+                alias.name if alias.asname else alias.name.split(".")[0]
+            )
             root = alias.name.split(".")[0]
             if root in self.blocked_imports:
                 self.findings.append(Finding("blocked-import", node.lineno, alias.name))
@@ -42,12 +49,19 @@ class StaticPolicyEvaluator(ast.NodeVisitor):
         root = (node.module or "").split(".")[0]
         if root in self.blocked_imports:
             self.findings.append(Finding("blocked-import", node.lineno, node.module or ""))
+        for alias in node.names:
+            if alias.name != "*":
+                self.aliases[alias.asname or alias.name] = (
+                    f"{node.module}.{alias.name}" if node.module else alias.name
+                )
         self.generic_visit(node)
 
     def visit_Call(self, node: ast.Call) -> None:
         name = self._call_name(node.func)
-        if name in self.blocked_calls:
-            self.findings.append(Finding("blocked-call", node.lineno, name))
+        root, dot, rest = name.partition(".")
+        canonical = self.aliases.get(root, root) + (dot + rest if dot else "")
+        if canonical in self.blocked_calls:
+            self.findings.append(Finding("blocked-call", node.lineno, canonical))
         self.generic_visit(node)
 
     def visit_Constant(self, node: ast.Constant) -> None:
