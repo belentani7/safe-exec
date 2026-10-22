@@ -71,7 +71,8 @@ class StaticPolicyEvaluator(ast.NodeVisitor):
         # Never evaluate the assignment: inspect syntax only.
         self.visit(node.value)
         name = self._call_name(node.value)
-        canonical = self._canonical_call(name) if name else ""
+        dynamic = self._static_getattr_name(node.value)
+        canonical = self._canonical_call(name or dynamic) if (name or dynamic) else ""
         for target in node.targets:
             if isinstance(target, ast.Name):
                 if canonical:
@@ -86,7 +87,8 @@ class StaticPolicyEvaluator(ast.NodeVisitor):
             self.visit(node.value)
         if isinstance(node.target, ast.Name):
             name = self._call_name(node.value) if node.value is not None else ""
-            canonical = self._canonical_call(name) if name else ""
+            dynamic = self._static_getattr_name(node.value) if node.value is not None else ""
+            canonical = self._canonical_call(name or dynamic) if (name or dynamic) else ""
             if canonical:
                 self.aliases[node.target.id] = canonical
             else:
@@ -95,7 +97,8 @@ class StaticPolicyEvaluator(ast.NodeVisitor):
             self.visit(node.target)
 
     def visit_Call(self, node: ast.Call) -> None:
-        canonical = self._canonical_call(self._call_name(node.func))
+        name = self._call_name(node.func) or self._static_getattr_name(node.func)
+        canonical = self._canonical_call(name)
         if canonical in self.blocked_calls:
             self.findings.append(Finding("blocked-call", node.lineno, canonical))
         self.generic_visit(node)
@@ -105,6 +108,21 @@ class StaticPolicyEvaluator(ast.NodeVisitor):
             for literal in self.blocked_literals:
                 if literal in node.value:
                     self.findings.append(Finding("blocked-literal", node.lineno, literal))
+
+    def _static_getattr_name(self, node: ast.AST) -> str:
+        """Resolve only literal getattr aliases; never execute dynamic code."""
+        if not isinstance(node, ast.Call) or len(node.args) != 2 or node.keywords:
+            return ""
+        call = self._canonical_call(self._call_name(node.func))
+        if call not in {"getattr", "builtins.getattr"}:
+            return ""
+        base = self._call_name(node.args[0])
+        attribute = node.args[1]
+        if not base or not isinstance(attribute, ast.Constant) or not isinstance(attribute.value, str):
+            return ""
+        if not attribute.value.isidentifier():
+            return ""
+        return f"{base}.{attribute.value}"
 
     @staticmethod
     def _call_name(node: ast.AST) -> str:
