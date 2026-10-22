@@ -78,7 +78,7 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\safe-exec scan .\samples\safe_sample.py
 ```
 
-Resultado verificado en este checkout: `6 passed`. El comando `scan` no ejecuta el archivo ni inventa un trace dinámico.
+La suite de regresión y el escaneo CLI se ejecutan también en CI sobre Python 3.11 y 3.12. El comando `scan` no ejecuta el archivo ni inventa un trace dinámico.
 
 En Linux o macOS:
 
@@ -174,4 +174,4 @@ No abriremos una repo de producto separada hasta demostrar demanda, tasa aceptab
 
 ## Estado del proyecto
 
-SAFE-EXEC está en fase de prototipo validado localmente, no de producto certificado. El siguiente hito no es añadir más arquitectura: es conseguir revisiones pequeñas de personas que conocen bien un límite específico, convertirlas en pruebas y descubrir si el Trust Trial resuelve una preocupación real para mantenedores y usuarios.
+SAFE-EXEC está en fase de prototipo con regresiones automatizadas en CI, no de producto certificado. El siguiente hito no es añadir más arquitectura: es conseguir revisiones pequeñas de personas que conocen bien un límite específico, convertirlas en pruebas y descubrir si el Trust Trial resuelve una preocupación real para mantenedores y usuarios.
