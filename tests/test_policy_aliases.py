@@ -65,3 +65,19 @@ def test_alias_rebinding_to_safe_symbol_clears_stale_binding(evaluator):
 def test_scanner_reports_new_simple_alias_without_running_it(evaluator):
     findings = evaluator.evaluate("import os\nfn = os.system\nfn('never execute')")
     assert [f.detail for f in findings if f.rule == "blocked-call"] == ["os.system"]
+
+@pytest.mark.parametrize("code", [
+    "import os as operating\ngetattr(operating, 'system')('echo')",
+    "import os\ncall = getattr(os, 'system')\ncall('echo')",
+    "from builtins import getattr as attr\nimport subprocess as sp\nattr(sp, 'run')(['whoami'])",
+    "import builtins\ne = getattr(builtins, 'eval')\ne('1 + 1')",
+])
+def test_literal_getattr_does_not_disguise_blocked_calls(evaluator, code):
+    assert any(result.rule == "blocked-call" for result in evaluator.evaluate(code))
+
+
+def test_computed_getattr_is_not_executed_by_static_policy(evaluator):
+    # Arbitrary expressions must remain inert at analysis time.
+    code = "import math\nx = getattr(math, 's' + 'qrt')(9)"
+    assert evaluator.evaluate(code) == []
+
