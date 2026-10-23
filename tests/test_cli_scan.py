@@ -49,7 +49,7 @@ def test_json_report_blocks_call_without_running_it(tmp_path, monkeypatch, capsy
 
 def test_invalid_encoding_is_a_controlled_denial(tmp_path, monkeypatch, capsys):
     file = tmp_path / "invalid.py"
-    file.write_bytes(b"\\xff\\xfe".decode("unicode_escape").encode("latin1"))
+    file.write_bytes(bytes([0xFF, 0xFE]))
 
     status, output = scan(monkeypatch, capsys, file, "--json")
     report = json.loads(output)
