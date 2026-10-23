@@ -78,7 +78,13 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\safe-exec scan .\samples\safe_sample.py
 ```
 
-Resultado verificado en este checkout: `6 passed`. El comando `scan` no ejecuta el archivo ni inventa un trace dinámico.
+El comando `scan` no ejecuta el archivo ni inventa un trace dinámico. Para integrarlo en CI se puede obtener un recibo JSON de la evaluación estática:
+
+```bash
+safe-exec scan samples/safe_sample.py --json
+```
+
+La salida incluye `schema_version: 1`, SHA-256 de los bytes inspeccionados, `allowed` y hallazgos con regla, línea y detalle. Devuelve estado 1 ante reglas bloqueadas, código Python inválido o texto que no sea UTF-8; estado 0 cuando no hay hallazgos. **`allowed: true` significa únicamente que estas reglas estáticas no encontraron problemas, no que el archivo sea seguro.** El hash permite comprobar qué versión exacta se analizó; `scan` nunca ejecuta el código.
 
 En Linux o macOS:
 
