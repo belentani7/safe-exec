@@ -9,6 +9,12 @@ from .orchestrator import run
 from .policy import Finding, StaticPolicyEvaluator
 
 
+def hash_file(path: Path) -> str:
+    """Hash file bytes incrementally without loading the whole file."""
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="safe-exec")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -24,7 +30,7 @@ def main() -> None:
     if not args.file.is_file():
         parser.error(f"file not found: {args.file}")
     if args.command == "hash":
-        print(hashlib.sha256(args.file.read_bytes()).hexdigest())
+        print(hash_file(args.file))
         return
     if args.command == "scan":
         # Hash and parse exactly the same bytes: a scan never executes the input.
