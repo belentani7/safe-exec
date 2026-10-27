@@ -81,3 +81,16 @@ def test_computed_getattr_is_not_executed_by_static_policy(evaluator):
     code = "import math\nx = getattr(math, 's' + 'qrt')(9)"
     assert evaluator.evaluate(code) == []
 
+
+@pytest.mark.parametrize("code", [
+    "import os\nfn = os.system\nif unknown:\n    fn = print\nfn('do not run')",
+    "import os\nfn = print\nif unknown:\n    fn = os.system\nelse:\n    fn = print\nfn('do not run')",
+    "import os\nfn = os.system\nif first:\n    if second:\n        fn = print\nfn('do not run')",
+])
+def test_conditional_rebinding_cannot_erase_possible_blocked_call(evaluator, code):
+    assert any(f.rule == "blocked-call" for f in evaluator.evaluate(code))
+
+
+def test_unconditional_safe_rebinding_after_if_still_clears_alias(evaluator):
+    code = "import os\nfn = os.system\nif unknown:\n    fn = os.system\nfn = print\nfn('safe')"
+    assert not any(f.rule == "blocked-call" for f in evaluator.evaluate(code))
