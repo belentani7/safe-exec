@@ -96,6 +96,37 @@ class StaticPolicyEvaluator(ast.NodeVisitor):
         else:
             self.visit(node.target)
 
+    def visit_If(self, node: ast.If) -> None:
+        # Each branch starts from the same bindings. Walking branches in order
+        # loses dangerous aliases when the last visited branch rebinds them.
+        self.visit(node.test)
+        before = self.aliases.copy()
+        for statement in node.body:
+            self.visit(statement)
+        body_aliases = self.aliases.copy()
+        self.aliases = before.copy()
+        for statement in node.orelse:
+            self.visit(statement)
+        else_aliases = self.aliases.copy()
+
+        merged: dict[str, str] = {}
+        for name in body_aliases.keys() | else_aliases.keys():
+            possibilities = (body_aliases.get(name), else_aliases.get(name))
+            # Conservatively retain a restricted callable/module reachable
+            # on either path; this is not a complete data-flow analysis.
+            restricted = next(
+                (value for value in possibilities if value and (
+                    value in self.blocked_calls
+                    or any(call.startswith(value + ".") for call in self.blocked_calls)
+                    or value.split(".", 1)[0] in self.blocked_imports
+                )),
+                None,
+            )
+            selected = restricted or possibilities[0] or possibilities[1]
+            if selected:
+                merged[name] = selected
+        self.aliases = merged
+
     def visit_Call(self, node: ast.Call) -> None:
         name = self._call_name(node.func) or self._static_getattr_name(node.func)
         canonical = self._canonical_call(name)
