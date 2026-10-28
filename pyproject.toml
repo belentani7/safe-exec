@@ -8,7 +8,7 @@ version = "1.0.0"
 description = "Signed pre-execution consensus for isolated code execution"
 requires-python = ">=3.11"
 dependencies = [
-  "cryptography>=45,<50",
+  "cryptography>=45,<51",
   "fastapi>=0.116,<1",
   "httpx>=0.28,<1",
   "pydantic>=2.11,<3",
