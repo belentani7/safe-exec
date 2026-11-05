@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-from .models import EvaluationRequest, ReleasePayload, ReleaseToken, SignedVote, VotePayload
+from .models import (
+    EvaluationRequest,
+    ReleasePayload,
+    ReleaseToken,
+    SignedVote,
+    VotePayload,
+)
 
 
 def request_from_dict(data: dict) -> EvaluationRequest:

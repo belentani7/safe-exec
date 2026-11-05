@@ -24,7 +24,7 @@ class EvaluationRequest:
     expires_at: int
 
     @classmethod
-    def create(cls, filename: str, content: bytes, content_b64: str, ttl: int = 120) -> "EvaluationRequest":
+    def create(cls, filename: str, content: bytes, content_b64: str, ttl: int = 120) -> EvaluationRequest:
         now = int(time.time())
         return cls(
             request_id=str(uuid.uuid4()),
