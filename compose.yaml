@@ -1,0 +1,140 @@
+# SAFE-EXEC reference deployment.
+#
+# Every service shares one image; SAFEEXEC_ROLE selects behaviour. Secrets are
+# mounted per service, containers are read-only with all capabilities dropped,
+# and only the evaluators that genuinely need egress join that network.
+#
+#   docker compose up --build -d local global semantic ollama broker
+#   docker compose --profile run run --rm orchestrator run /work/safe_sample.py
+
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 128
+  tmpfs: [/tmp]
+  restart: unless-stopped
+
+x-health: &health
+  interval: 30s
+  timeout: 5s
+  retries: 3
+  start_period: 10s
+
+services:
+  local:
+    build: .
+    <<: *hardening
+    environment:
+      SAFEEXEC_ROLE: local
+      SAFEEXEC_PRIVATE_KEY: /run/secrets/local_private
+      SAFEEXEC_RULES: /app/rules.yaml
+    secrets: [local_private]
+    networks: [control]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).status == 200 else 1)"]
+
+  global:
+    build: .
+    <<: *hardening
+    environment:
+      SAFEEXEC_ROLE: global
+      SAFEEXEC_PRIVATE_KEY: /run/secrets/global_private
+      VT_API_KEY_FILE: /run/secrets/vt_api_key
+    secrets: [global_private, vt_api_key]
+    networks: [control, egress]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).status == 200 else 1)"]
+
+  semantic:
+    build: .
+    <<: *hardening
+    environment:
+      SAFEEXEC_ROLE: semantic
+      SAFEEXEC_PRIVATE_KEY: /run/secrets/semantic_private
+      OLLAMA_ENDPOINT: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-phi4-mini:latest}
+    secrets: [semantic_private]
+    networks: [control]
+    depends_on:
+      ollama:
+        condition: service_started
+    healthcheck:
+      <<: *health
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).status == 200 else 1)"]
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes: [ollama-data:/root/.ollama]
+    networks: [control]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 512
+    restart: unless-stopped
+
+  broker:
+    build: .
+    <<: *hardening
+    environment:
+      SAFEEXEC_ROLE: broker
+      SAFEEXEC_PRIVATE_KEY: /run/secrets/broker_private
+      SAFEEXEC_TRUSTED_KEYS: /run/secrets
+      SAFEEXEC_REPLAY_DB: /data/replay.sqlite3
+    secrets: [broker_private, local_public, global_public, semantic_public]
+    volumes: [broker-data:/data]
+    networks: [control]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).status == 200 else 1)"]
+
+  orchestrator:
+    build: .
+    entrypoint: ["safe-exec"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    environment:
+      SAFEEXEC_EVALUATORS: http://local:8080,http://global:8080,http://semantic:8080
+      SAFEEXEC_BROKER: http://broker:8080
+      SAFEEXEC_BROKER_PUBLIC_KEY: /run/secrets/broker_public
+      SAFEEXEC_TOKEN_DB: /data/tokens.sqlite3
+      E2B_API_KEY_FILE: /run/secrets/e2b_api_key
+    secrets: [broker_public, e2b_api_key]
+    volumes:
+      - ./samples:/work:ro
+      - orchestrator-data:/data
+    tmpfs: [/tmp]
+    networks: [control, egress]
+    depends_on:
+      local:
+        condition: service_healthy
+      broker:
+        condition: service_healthy
+    profiles: [run]
+
+networks:
+  # Control traffic only; no route to the internet.
+  control:
+    internal: true
+  # The only bridge with outbound connectivity.
+  egress: {}
+
+volumes:
+  broker-data:
+  ollama-data:
+  orchestrator-data:
+
+secrets:
+  local_private: {file: ./secrets/local_private.pem}
+  global_private: {file: ./secrets/global_private.pem}
+  semantic_private: {file: ./secrets/semantic_private.pem}
+  broker_private: {file: ./secrets/broker_private.pem}
+  local_public: {file: ./secrets/local_public.pem}
+  global_public: {file: ./secrets/global_public.pem}
+  semantic_public: {file: ./secrets/semantic_public.pem}
+  broker_public: {file: ./secrets/broker_public.pem}
+  vt_api_key: {file: ./secrets/vt_api_key.txt}
+  e2b_api_key: {file: ./secrets/e2b_api_key.txt}

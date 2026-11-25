@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[test,e2b]"
+
+      - name: Lint
+        run: ruff check safeexec tests scripts
+
+      - name: Compile
+        run: python -m compileall -q safeexec tests scripts
+
+      - name: Test with coverage
+        run: python -m pytest --cov=safeexec --cov-report=term-missing --cov-fail-under=85
+
+      - name: Adversarial self-audit
+        run: python scripts/audit.py
+
+      - name: CLI smoke test
+        run: |
+          safe-exec --version
+          safe-exec scan samples/safe_sample.py
+          safe-exec hash samples/safe_sample.py
+
+  package:
+    name: wheel installs and runs standalone
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --wheel
+
+      - name: Install the wheel in a clean environment
+        run: |
+          python -m venv /tmp/clean
+          /tmp/clean/bin/pip install --quiet dist/*.whl
+          # This is the regression that v1.1.0 fixes: rules.yaml was missing.
+          /tmp/clean/bin/safe-exec scan samples/safe_sample.py
+          printf 'import os\nos.system("id")\n' > /tmp/bad.py
+          if /tmp/clean/bin/safe-exec scan /tmp/bad.py; then
+            echo "::error::expected the scanner to deny os.system"
+            exit 1
+          fi
+
+  security:
+    name: dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pip-audit
+        run: python -m pip install --upgrade pip pip-audit
+
+      - name: Audit runtime dependencies
+        run: pip-audit --strict --progress-spinner=off
+
+  compose:
+    name: validate compose file
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate YAML and service graph
+        run: |
+          python - <<'PY'
+          import sys, yaml
+          doc = yaml.safe_load(open("compose.yaml", encoding="utf-8"))
+          services = doc["services"]
+          required = {"local", "global", "semantic", "broker", "orchestrator"}
+          missing = required - set(services)
+          if missing:
+              sys.exit(f"missing services: {sorted(missing)}")
+          for name, service in services.items():
+              assert "build" in service or "image" in service, name
+          print(f"compose.yaml OK ({len(services)} services)")
+          PY
