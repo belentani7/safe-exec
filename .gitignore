@@ -1,12 +1,46 @@
-# Generated OS metadata, Python bytecode, and HTML reports
+# Generated OS metadata
 .DS_Store
 ._*
 __MACOSX/
 Thumbs.db
 Desktop.ini
 desktop.ini
-__pycache__/
-*.pyc
-*.pyo
 htmlcov/
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+coverage.xml
+.benchmark-cache/
+
+# Environments
+.env
+.venv/
+.venv312/
+venv/
+
+# Build artefacts
+dist/
+build/
+*.egg-info/
+*.whl
+
+# Local state and secrets
+*.sqlite3
+secrets/*_private.pem
+secrets/vt_api_key.txt
+secrets/e2b_api_key.txt
+secrets/local_public.pem
+secrets/global_public.pem
+secrets/semantic_public.pem
+secrets/broker_public.pem
+ollama-data/
+
+# Test and report output
 playwright-report/
+test-results/

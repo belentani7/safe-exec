@@ -1,0 +1,110 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "safe-exec-protocol"
+version = "1.1.0"
+description = "Signed pre-execution consensus for isolated code execution"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "Pedro Belentani", email = "belentani7@users.noreply.github.com" }]
+keywords = [
+  "security",
+  "sandbox",
+  "static-analysis",
+  "supply-chain",
+  "agent-safety",
+  "ed25519",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Security",
+  "Topic :: Software Development :: Quality Assurance",
+  "Typing :: Typed",
+]
+dependencies = [
+  "cryptography>=45,<51",
+  "fastapi>=0.116,<1",
+  "httpx>=0.28,<1",
+  "pydantic>=2.11,<3",
+  "PyYAML>=6,<7",
+  "uvicorn>=0.35,<1",
+]
+
+[project.optional-dependencies]
+e2b = ["e2b-code-interpreter>=2.4,<3"]
+test = [
+  "pytest>=8.4,<10",
+  "pytest-cov>=6,<8",
+  "ruff>=0.9,<1",
+]
+
+[project.urls]
+Homepage = "https://github.com/belentani7/safe-exec"
+Documentation = "https://github.com/belentani7/safe-exec#readme"
+Issues = "https://github.com/belentani7/safe-exec/issues"
+Security = "https://github.com/belentani7/safe-exec/security/advisories/new"
+
+[project.scripts]
+safe-exec = "safeexec.cli:entrypoint"
+safe-exec-service = "safeexec.service:main"
+safe-exec-keygen = "safeexec.keygen:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["safeexec"]
+
+# Ship the policy inside the package: a wheel install has no repository root,
+# so resolving ``../rules.yaml`` from the module path cannot work.
+[tool.hatch.build.targets.wheel.force-include]
+"safeexec/rules.yaml" = "safeexec/rules.yaml"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/safeexec",
+  "/tests",
+  "/docs",
+  "/scripts",
+  "/samples",
+  "/README.md",
+  "/LICENSE",
+  "/SECURITY.md",
+  "/pyproject.toml",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+filterwarnings = ["error::DeprecationWarning:safeexec.*"]
+
+[tool.coverage.run]
+source = ["safeexec"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 85
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["safeexec", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF"]
+ignore = [
+  "B008",   # function calls in argument defaults are idiomatic for FastAPI
+  "RUF012", # mutable class attributes are not used as shared state
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Long source-string literals in tests read better unwrapped.
+"tests/*" = ["E501"]
